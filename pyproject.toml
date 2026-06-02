@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "intelica-mcp"
+version = "1.0.0"
+description = "Intelica MCP Server — Competitive Intelligence for AI Agents via x402"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "teodorofodocrispin-cmyk", email = "teodorofodocrispin-cmyk@users.noreply.github.com" }
+]
+keywords = ["mcp", "competitive-intelligence", "x402", "ai-agents", "usdc", "base"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Internet :: WWW/HTTP",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=1.0.0",
+    "httpx>=0.27.0",
+    "fastmcp>=0.1.0",
+]
+
+[project.optional-dependencies]
+x402 = [
+    "x402[evm]>=2.12.0",
+    "eth-account>=0.13.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.urls]
+Homepage = "https://intelica.onrender.com"
+Repository = "https://github.com/teodorofodocrispin-cmyk/intelica-mcp"
+Documentation = "https://intelica.onrender.com/docs"
+
+[project.scripts]
+intelica-mcp = "server:mcp.run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
