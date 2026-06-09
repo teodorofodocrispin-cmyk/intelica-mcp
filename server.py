@@ -12,7 +12,7 @@ Transport: Streamable HTTP (MCP 2024-11-05)
 import os
 import json
 import httpx
-from typing import Optional
+from typing import Optional, Literal
 from mcp.server.fastmcp import FastMCP
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -23,25 +23,21 @@ EVM_PRIVATE_KEY   = os.environ.get("EVM_PRIVATE_KEY", "")   # Required for paid 
 mcp = FastMCP(
     name="Intelica",
     instructions="""
-Intelica provides competitive intelligence analysis for AI agents.
+Intelica provides competitive intelligence for autonomous AI agents.
 
-Send any URL or text description of a product, company, or service and receive
-structured intelligence: market positioning, user pain points, detected competitors,
-and unique market angles.
+Send any URL or text description and receive structured JSON with market positioning,
+pain points, competitors, battlecard, verified sources, and executable Market Score.
 
 Pricing:
-- analyze_competitor: $0.05 USDC per call (Base mainnet, via x402)
-- batch_analyze: $0.20 USDC for up to 10 analyses in parallel
-- get_pricing: Free
+- analyze_competitor: $0.05 USDC (standard modes) or $1.00 USDC (elite modes)
+- analyze_competitor with format=report: $0.50 USDC (HTML report for humans)
+- batch_analyze: $0.20 USDC for up to 10 analyses
+- demo_analyze: Free (300 char limit)
 
-Payments are handled automatically via the x402 protocol if EVM_PRIVATE_KEY
-is configured. No accounts, no API keys, no subscriptions required.
+Standard modes ($0.05): competitive, fundraising, partnership, acquisition, market_entry, crypto_protocol
+Elite modes ($1.00): venture_screening, regulatory_compliance, risk_assessment, sales_enablement
 
-Best for:
-- Research agents building competitive reports
-- Outreach agents personalizing messages before contacting prospects
-- Due diligence agents evaluating startups or vendors
-- Product intelligence agents monitoring competitor positioning
+Payments via x402 on Base mainnet or Solana mainnet.
 """,
     stateless_http=True,
     json_response=True,
@@ -50,12 +46,6 @@ Best for:
 
 # ── x402 Payment helper ───────────────────────────────────────────────────────
 async def _call_intelica(endpoint: str, payload: dict) -> dict:
-    """
-    Makes an x402-authenticated request to the Intelica API.
-
-    If EVM_PRIVATE_KEY is set, handles payment automatically via x402.
-    Falls back to direct call (will return 402 if payment required).
-    """
     url = f"{INTELICA_BASE_URL}{endpoint}"
 
     if EVM_PRIVATE_KEY:
@@ -79,16 +69,15 @@ async def _call_intelica(endpoint: str, payload: dict) -> dict:
                 await response.aread()
                 return response.json()
         except ImportError:
-            pass  # Fall through to direct call
+            pass
 
-    # Direct call without payment (for testing or if x402 not installed)
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(url, json=payload)
         if response.status_code == 402:
             return {
                 "error": "Payment required",
                 "message": "Set EVM_PRIVATE_KEY environment variable to enable automatic x402 payments.",
-                "price": "$0.05 USDC on Base mainnet",
+                "price": "$0.05–$1.00 USDC on Base or Solana mainnet",
                 "docs": f"{INTELICA_BASE_URL}/docs",
             }
         return response.json()
@@ -101,49 +90,54 @@ async def analyze_competitor(
     url: Optional[str] = None,
     text: Optional[str] = None,
     context: Optional[str] = None,
+    mode: Optional[str] = "competitive",
+    format: Optional[str] = "json",
+    force_refresh: Optional[bool] = False,
 ) -> str:
     """
-    Analyzes a competitor's URL or text description and returns structured
-    competitive intelligence as JSON.
+    Analyzes a competitor URL or text and returns structured competitive intelligence.
 
-    Cost: $0.05 USDC per call, paid automatically via x402 on Base mainnet.
-    Response time: 2-5 seconds (first call), <1 second (cached within 6 hours).
+    Cost:
+    - Standard modes (competitive, fundraising, partnership, acquisition,
+      market_entry, crypto_protocol): $0.05 USDC
+    - Elite modes (venture_screening, regulatory_compliance, risk_assessment,
+      sales_enablement): $1.00 USDC
+    - format=report (HTML for humans): $0.50 USDC
 
-    Returns a JSON object with these fields:
-    - company_or_product (str): Identified name of the company or product
-    - positioning_summary (str): 2-3 sentence description of market positioning
-    - target_customer (str): Primary customer segment being targeted
-    - core_value_props (list[str]): Top 3 value propositions
-    - user_pain_points (list[str]): Top 3 problems users experience
-    - detected_competitors (list[str]): Up to 6 detected competitors
-    - unique_angle (str): One specific differentiator or exploitable gap
-    - tone (str): Brand tone — "professional", "casual", "technical", or "aggressive"
-    - confidence (str): Analysis confidence — "high", "medium", or "low"
+    Returns JSON with:
+    - company_or_product, positioning_summary, target_customer
+    - core_value_props, user_pain_points, detected_competitors
+    - unique_angle, tone, confidence
+    - sources[] — verified URLs from Exa web search
+    - battlecard (sales_enablement mode only): headline, their_weakness,
+      your_angle, proof_point, objection_handler
+    - market_score: threat_level, moat_strength, market_maturity, agent_recommendation
+    - trend: status (new/stable/changed) + changes[]
 
     Parameters:
-    - url: Full URL of the product or company to analyze (e.g. "https://notion.so").
-      The server fetches and parses the page automatically.
-    - text: Raw text description to analyze (alternative to url).
-      Minimum 50 characters for reliable results.
-    - context: Optional context about your own product or use case.
-      Example: "I'm building a note-taking app for developers."
-      Providing context improves the relevance of unique_angle.
+    - url: Full URL to analyze (e.g. "https://notion.so")
+    - text: Text description (min 50 chars, alternative to url)
+    - context: Your product context for better unique_angle
+    - mode: Analysis mode — see options below
+    - format: "json" (default, for agents) or "report" (HTML for humans)
+    - force_refresh: True to bypass 6h cache for fast-moving markets
 
-    At least one of url or text is required.
+    Available modes:
+    Standard ($0.05): competitive, fundraising, partnership, acquisition,
+                      market_entry, crypto_protocol
+    Elite ($1.00): venture_screening, regulatory_compliance,
+                   risk_assessment, sales_enablement
 
-    Example usage:
-    - analyze_competitor(url="https://linear.app")
-    - analyze_competitor(text="Figma is a collaborative design tool for product teams")
-    - analyze_competitor(url="https://notion.so", context="Building a wiki tool for engineers")
-
-    Note: Results are cached for 6 hours. Repeated calls for the same input
-    return instantly at the same price.
+    Examples:
+    - analyze_competitor(url="https://linear.app", mode="competitive")
+    - analyze_competitor(text="Uniswap is a DEX on Ethereum", mode="crypto_protocol")
+    - analyze_competitor(url="https://notion.so", mode="sales_enablement")
+    - analyze_competitor(text="OpenAI GPT-4", mode="venture_screening")
+    - analyze_competitor(text="Clearview AI", mode="regulatory_compliance")
+    - analyze_competitor(url="https://competitor.com", format="report")
     """
     if not url and not text:
-        return json.dumps({
-            "error": "Missing input",
-            "message": "Provide either 'url' or 'text' parameter.",
-        })
+        return json.dumps({"error": "Provide either 'url' or 'text'."})
 
     payload = {}
     if url:
@@ -152,66 +146,36 @@ async def analyze_competitor(
         payload["text"] = text
     if context:
         payload["context"] = context
+    if mode:
+        payload["mode"] = mode
+    if format:
+        payload["format"] = format
+    if force_refresh:
+        payload["force_refresh"] = force_refresh
 
     result = await _call_intelica("/intel", payload)
     return json.dumps(result, indent=2)
 
 
 @mcp.tool()
-async def batch_analyze(
-    items: list[dict],
-) -> str:
+async def batch_analyze(items: list[dict]) -> str:
     """
-    Analyzes up to 10 competitors in parallel in a single call.
+    Analyzes up to 10 competitors in parallel for $0.20 USDC flat.
 
-    Cost: $0.20 USDC flat for the entire batch (regardless of item count),
-    paid automatically via x402 on Base mainnet. More efficient than calling
-    analyze_competitor 10 times ($0.50 USDC).
+    Each item can have: url, text, context, mode, id
+    Returns array of analysis results with market_score per item.
 
-    Each item in the batch is processed in parallel, so total time is similar
-    to a single analysis (2-5 seconds) regardless of batch size.
-
-    Returns a JSON object with:
-    - results (list): Array of analysis results, one per item
-      - id (str): The id you provided, or the item index as string
-      - source (str): The url or "provided_text"
-      - analysis (object): Same structure as analyze_competitor output
-      - cached (bool): Whether this result was served from cache
-    - total (int): Number of items processed
-    - cached (int): Number of items served from cache
-    - response_ms (int): Total processing time in milliseconds
-    - price_paid_usdc (str): Total price paid ("0.20")
-
-    Parameters:
-    - items (list[dict]): List of up to 10 analysis requests. Each item can have:
-      - url (str, optional): URL to analyze
-      - text (str, optional): Text description to analyze
-      - context (str, optional): Your product context for relevance
-      - id (str, optional): Identifier to track items in the response
-
-    Example usage:
+    Example:
     batch_analyze(items=[
-        {"url": "https://notion.so", "id": "notion"},
-        {"url": "https://coda.io", "id": "coda"},
-        {"text": "Obsidian is a local-first note-taking app", "id": "obsidian"},
+        {"url": "https://notion.so", "id": "notion", "mode": "competitive"},
+        {"url": "https://coda.io", "id": "coda", "mode": "sales_enablement"},
+        {"text": "Obsidian local-first notes", "id": "obsidian"},
     ])
-
-    Best for:
-    - Due diligence: analyze all competitors in a market in one call
-    - Weekly monitoring: check 5-10 competitors every Monday
-    - Market mapping: build a full competitive landscape in seconds
     """
     if not items:
-        return json.dumps({
-            "error": "Missing items",
-            "message": "Provide a list of items to analyze.",
-        })
-
+        return json.dumps({"error": "Provide a list of items."})
     if len(items) > 10:
-        return json.dumps({
-            "error": "Too many items",
-            "message": f"Maximum 10 items per batch. You provided {len(items)}.",
-        })
+        return json.dumps({"error": f"Max 10 items. You provided {len(items)}."})
 
     result = await _call_intelica("/batch", {"items": items})
     return json.dumps(result, indent=2)
@@ -220,33 +184,8 @@ async def batch_analyze(
 @mcp.tool()
 async def get_pricing() -> str:
     """
-    Returns current pricing, available endpoints, network configuration,
-    and wallet addresses for the Intelica API.
-
-    Free to call — no payment required.
-
-    Returns a JSON object with:
-    - single (object): Pricing for POST /intel (single analysis)
-      - price (str): "$0.05 USDC"
-      - max_items (int): 1
-    - batch (object): Pricing for POST /batch (batch analysis)
-      - price (str): "$0.20 USDC"
-      - max_items (int): 10
-    - demo (object): Pricing for POST /demo (free demo)
-      - price (str): "free"
-      - limit (str): "300 chars, no URL"
-    - network (str): Payment network in CAIP-2 format ("eip155:8453" = Base mainnet)
-    - pay_to (str): EVM wallet address receiving payments
-    - asset (str): Payment asset ("USDC")
-    - protocol (str): Payment protocol ("x402")
-
-    Use this tool to:
-    - Verify current prices before making calls
-    - Get the wallet address for manual payment verification
-    - Confirm network and asset configuration
-
-    Example usage:
-    get_pricing()
+    Returns current pricing, endpoints, network config, and wallet addresses.
+    Free — no payment required.
     """
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.get(f"{INTELICA_BASE_URL}/pricing")
@@ -254,44 +193,26 @@ async def get_pricing() -> str:
 
 
 @mcp.tool()
-async def demo_analyze(text: str) -> str:
+async def demo_analyze(text: str, mode: Optional[str] = "competitive") -> str:
     """
-    Runs a free competitive intelligence analysis on a short text description.
+    Free competitive intelligence analysis. 300 character limit. No URL support.
 
-    No payment required. Limited to 300 characters of text input.
-    Does not support URL fetching (use analyze_competitor for URLs).
-    Results may be cached from previous calls.
+    All 10 modes available in demo:
+    competitive, fundraising, partnership, acquisition, market_entry,
+    crypto_protocol, venture_screening, regulatory_compliance,
+    risk_assessment, sales_enablement
 
-    Returns the same JSON structure as analyze_competitor:
-    - company_or_product, positioning_summary, target_customer,
-      core_value_props, user_pain_points, detected_competitors,
-      unique_angle, tone, confidence
-
-    Parameters:
-    - text (str): Text description of the product or company to analyze.
-      Maximum 300 characters. For longer texts or URL analysis, use
-      analyze_competitor (paid, $0.05 USDC).
-
-    Example usage:
-    demo_analyze(text="Linear is a fast project management tool for software teams")
-    demo_analyze(text="Stripe is a payment processing platform for developers")
-
-    Note: This is a demonstration endpoint. For production agent workflows,
-    use analyze_competitor or batch_analyze with x402 payment.
+    Example:
+    demo_analyze(text="Stripe is a payment API for developers", mode="competitive")
+    demo_analyze(text="Uniswap v4 decentralized exchange", mode="crypto_protocol")
     """
     if not text:
-        return json.dumps({
-            "error": "Missing text",
-            "message": "Provide a text description to analyze.",
-        })
-
-    if len(text) > 300:
-        text = text[:300]
+        return json.dumps({"error": "Provide text to analyze."})
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
             f"{INTELICA_BASE_URL}/demo",
-            json={"text": text},
+            json={"text": text[:300], "mode": mode or "competitive"},
         )
         return json.dumps(response.json(), indent=2)
 
@@ -308,8 +229,4 @@ if __name__ == "__main__":
     if args.transport == "stdio":
         mcp.run(transport="stdio")
     else:
-        mcp.run(
-            transport="streamable-http",
-            host=args.host,
-            port=args.port,
-        )
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
