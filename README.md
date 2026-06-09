@@ -42,7 +42,7 @@ claude mcp add intelica uvx intelica-mcp --env EVM_PRIVATE_KEY=0x_your_key
 Connect directly to the hosted endpoint:
 
 ```
-https://intelica.onrender.com/mcp
+https://api.intelica.dev/mcp
 ```
 
 ---
@@ -144,7 +144,7 @@ get_pricing()
 | Variable | Required | Description |
 |---|---|---|
 | `EVM_PRIVATE_KEY` | Yes (paid tools) | Base mainnet private key for x402 payments |
-| `INTELICA_BASE_URL` | No | Override API base URL (default: `https://intelica.onrender.com`) |
+| `INTELICA_BASE_URL` | No | Override API base URL (default: `https://api.intelica.dev`) |
 
 **Getting a Base mainnet wallet:**
 - [MetaMask](https://metamask.io) — add Base network, export private key
@@ -206,9 +206,9 @@ Facilitator: [PayAI](https://facilitator.payai.network)
 
 ## API Reference
 
-Full REST API documentation: **https://intelica.onrender.com/docs**
+Full REST API documentation: **https://api.intelica.dev/docs**
 
-x402 manifest: **https://intelica.onrender.com/.well-known/x402.json**
+x402 manifest: **https://api.intelica.dev/.well-known/x402.json**
 
 ---
 
