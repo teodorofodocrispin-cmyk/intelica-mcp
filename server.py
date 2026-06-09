@@ -5,7 +5,7 @@ Exposes competitive intelligence analysis as MCP tools.
 Payments are handled automatically via the x402 protocol (USDC on Base mainnet).
 No API keys required — agents pay $0.05 USDC per analysis autonomously.
 
-Endpoint: https://intelica.onrender.com/mcp
+Endpoint: https://api.intelica.dev/mcp
 Transport: Streamable HTTP (MCP 2024-11-05)
 """
 
@@ -16,7 +16,7 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 # ── Config ────────────────────────────────────────────────────────────────────
-INTELICA_BASE_URL = os.environ.get("INTELICA_BASE_URL", "https://intelica.onrender.com")
+INTELICA_BASE_URL = os.environ.get("INTELICA_BASE_URL", "https://api.intelica.dev")
 EVM_PRIVATE_KEY   = os.environ.get("EVM_PRIVATE_KEY", "")   # Required for paid tools
 
 # ── FastMCP Server ────────────────────────────────────────────────────────────
