@@ -1,0 +1,16 @@
+# Smithery configuration — https://smithery.ai/docs/build/project-config/smithery.yaml
+version: 1
+
+startCommand:
+  type: http
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        title: "Intelica API Key (optional)"
+        description: "Pre-loaded USDC API key. Get one free at https://api.intelica.dev/api-keys/trial (5 calls, no wallet needed). Leave blank to use x402 autonomous payments."
+        default: ""
+    additionalProperties: false
+  exampleConfig:
+    apiKey: "ikey_trial_..."
