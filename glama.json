@@ -2,5 +2,22 @@
   "$schema": "https://glama.ai/mcp/schemas/server.json",
   "maintainers": [
     "teodorofodocrispin-cmyk"
+  ],
+  "categories": [
+    "competitive-intelligence",
+    "market-research",
+    "payments",
+    "analytics"
+  ],
+  "license": "MIT",
+  "homepage": "https://api.intelica.dev",
+  "documentation": "https://api.intelica.dev/llms-full.txt",
+  "tags": [
+    "x402",
+    "competitive-intelligence",
+    "market-analysis",
+    "usdc",
+    "autonomous-agents",
+    "decision-support"
   ]
 }
